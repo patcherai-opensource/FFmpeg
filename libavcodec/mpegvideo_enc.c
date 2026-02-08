@@ -2929,17 +2929,13 @@ static void update_mb_info(MPVEncContext *const s, int startcode)
 {
     if (!s->mb_info)
         return;
+    if (startcode) {
+        s->prev_mb_info = put_bytes_count(&s->pb, 0);
+        return;
+    }
     if (put_bytes_count(&s->pb, 0) - s->prev_mb_info >= s->mb_info) {
         s->mb_info_size += 12;
         s->prev_mb_info = s->last_mb_info;
-    }
-    if (startcode) {
-        s->prev_mb_info = put_bytes_count(&s->pb, 0);
-        /* This might have incremented mb_info_size above, and we return without
-         * actually writing any info into that slot yet. But in that case,
-         * this will be called again at the start of the after writing the
-         * start code, actually writing the mb info. */
-        return;
     }
 
     s->last_mb_info = put_bytes_count(&s->pb, 0);
