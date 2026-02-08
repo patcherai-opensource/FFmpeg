@@ -2525,11 +2525,13 @@ static void pmt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
             break;
         program_info_length -= len;
         if (tag == IOD_DESCRIPTOR) {
-            get8(&p, p_end); // scope
-            get8(&p, p_end); // label
-            len -= 2;
-            mp4_read_iods(ts->stream, p, len, mp4_descr + mp4_descr_count,
-                          &mp4_descr_count, MAX_MP4_DESCR_COUNT);
+            if (len >= 2) {
+                get8(&p, p_end); // scope
+                get8(&p, p_end); // label
+                len -= 2;
+                mp4_read_iods(ts->stream, p, len, mp4_descr + mp4_descr_count,
+                              &mp4_descr_count, MAX_MP4_DESCR_COUNT);
+            }
         } else if (tag == REGISTRATION_DESCRIPTOR && len >= 4) {
             prog_reg_desc = bytestream_get_le32(&p);
             len -= 4;
