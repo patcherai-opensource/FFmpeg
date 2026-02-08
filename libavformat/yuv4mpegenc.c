@@ -19,6 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "libavutil/avassert.h"
 #include "libavutil/frame.h"
 #include "libavutil/pixdesc.h"
 #include "avformat.h"
@@ -195,9 +196,12 @@ static int yuv4_write_packet(AVFormatContext *s, AVPacket *pkt)
         return 0;
     }
 
-    width  = st->codecpar->width;
-    height = st->codecpar->height;
-    desc   = av_pix_fmt_desc_get(st->codecpar->format);
+    /* Use the minimum of codecpar and frame dimensions to prevent OOB reads
+     * when frames are smaller than expected (e.g., with wrapped_avframe and
+     * runtime cropping) */
+    width  = FFMIN(st->codecpar->width, frame->width > 0 ? frame->width : st->codecpar->width);
+    height = FFMIN(st->codecpar->height, frame->height > 0 ? frame->height : st->codecpar->height);
+    desc   = av_pix_fmt_desc_get(frame->format >= 0 ? frame->format : st->codecpar->format);
 
     /* The following code presumes all planes to be non-interleaved. */
     for (int k = 0; k < desc->nb_components; k++) {
