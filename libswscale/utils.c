@@ -381,7 +381,9 @@ static av_cold int initFilter(int16_t **outFilter, int32_t **filterPos,
     if (dstFilter)
         filter2Size += dstFilter->length - 1;
     av_assert0(filter2Size > 0);
-    if (!FF_ALLOCZ_TYPED_ARRAY(filter2, dstW * filter2Size))
+    if (dstW <= 0 || (size_t)dstW > SIZE_MAX / (size_t)filter2Size)
+        goto nomem;
+    if (!FF_ALLOCZ_TYPED_ARRAY(filter2, (size_t)dstW * (size_t)filter2Size))
         goto nomem;
     for (i = 0; i < dstW; i++) {
         int j, k;
