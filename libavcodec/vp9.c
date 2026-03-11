@@ -824,7 +824,6 @@ FF_ENABLE_DEPRECATION_WARNINGS
         s->s.h.tiling.tile_cols = 1 << s->s.h.tiling.log2_tile_cols;
         s->active_tile_cols = avctx->active_thread_type == FF_THREAD_SLICE ?
                               s->s.h.tiling.tile_cols : 1;
-        vp9_alloc_entries(avctx, s->sb_rows);
         if (avctx->active_thread_type == FF_THREAD_SLICE) {
             n_range_coders = 4; // max_tile_rows
         } else {
@@ -841,6 +840,14 @@ FF_ENABLE_DEPRECATION_WARNINGS
             rc += n_range_coders;
         }
     }
+
+#if HAVE_THREADS
+    if (avctx->active_thread_type & FF_THREAD_SLICE) {
+        ret = vp9_alloc_entries(avctx, s->sb_rows);
+        if (ret < 0)
+            return ret;
+    }
+#endif
 
     /* check reference frames */
     if (!s->s.h.keyframe && !s->s.h.intraonly) {
