@@ -854,12 +854,31 @@ static void mpegts_write_sdt(AVFormatContext *s)
     MpegTSService *service;
     uint8_t data[SECTION_LENGTH], *q, *desc_list_len_ptr, *desc_len_ptr;
     int i, running_status, free_ca_mode, val;
+    int err = 0;
 
     q = data;
     put16(&q, ts->original_network_id);
     *q++ = 0xff;
     for (i = 0; i < ts->nb_services; i++) {
         service = ts->services[i];
+
+        /* Calculate size needed for this service entry:
+         * 2 (sid) + 1 (flags) + 2 (desc_list_len) + 1 (SERVICE_DESCRIPTOR tag) +
+         * 1 (desc_len) + 1 (service_type) + provider_name + name */
+        size_t provider_len = service->provider_name[0] + 1;
+        size_t name_len = service->name[0] + 1;
+        size_t entry_len = 5 + 3 + provider_len + name_len;
+
+        /* Also check that descriptor body fits in single-byte length field */
+        size_t desc_body_len = 1 + provider_len + name_len;
+        if (desc_body_len > 255 || (q - data) + entry_len > SECTION_LENGTH) {
+            av_log(s, AV_LOG_ERROR,
+                   "The SDT section cannot fit service %d and all following services.\n"
+                   "Try reducing the length of the service or provider names.\n", i);
+            err = 1;
+            break;
+        }
+
         put16(&q, service->sid);
         *q++              = 0xfc | 0x00; /* currently no EIT info */
         desc_list_len_ptr = q;
@@ -872,8 +891,8 @@ static void mpegts_write_sdt(AVFormatContext *s)
         desc_len_ptr = q;
         q++;
         *q++         = ts->service_type;
-        putbuf(&q, service->provider_name, service->provider_name[0] + 1);
-        putbuf(&q, service->name, service->name[0] + 1);
+        putbuf(&q, service->provider_name, provider_len);
+        putbuf(&q, service->name, name_len);
         desc_len_ptr[0] = q - desc_len_ptr - 1;
 
         /* fill descriptor length */
@@ -882,8 +901,10 @@ static void mpegts_write_sdt(AVFormatContext *s)
         desc_list_len_ptr[0] = val >> 8;
         desc_list_len_ptr[1] = val;
     }
-    mpegts_write_section1(&ts->sdt, SDT_TID, ts->transport_stream_id, ts->tables_version, 0, 0,
-                          data, q - data);
+
+    if (!err)
+        mpegts_write_section1(&ts->sdt, SDT_TID, ts->transport_stream_id, ts->tables_version, 0, 0,
+                              data, q - data);
 }
 
 static void mpegts_write_nit(AVFormatContext *s)
