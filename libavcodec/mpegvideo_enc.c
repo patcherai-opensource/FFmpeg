@@ -2922,6 +2922,10 @@ static void update_mb_info(MPVEncContext *const s)
 {
     if (!s->mb_info)
         return;
+    if (startcode) {
+        s->prev_mb_info = put_bytes_count(&s->pb, 0);
+        return;
+    }
     if (put_bytes_count(&s->pb, 0) - s->prev_mb_info >= s->mb_info) {
         s->mb_info_size += 12;
         s->prev_mb_info = s->last_mb_info;
