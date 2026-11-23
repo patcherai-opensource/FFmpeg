@@ -108,7 +108,8 @@ typedef struct MXFStreamContext {
     UID clip_container_ul;   ///< clip wrapping essence container ul, used by OPAtom
     int order;               ///< interleaving order if dts are equal
     int interlaced;          ///< whether picture is interlaced
-    int field_dominance;     ///< tff=1, bff=2
+    int field_dominance;     ///< first field in temporal order, 1 or 2
+    int display_f2_offset;   ///< DisplayF2Offset, 0 or -1
     int signal_standard;
     int temporal_reordering;
     AVRational aspect_ratio; ///< display aspect ratio
@@ -1383,7 +1384,7 @@ static int64_t mxf_write_generic_picture_desc(AVFormatContext *s, AVStream *st)
     if (sc->interlaced) {
         //Display F2 Offset
         mxf_write_local_tag(s, 4, 0x3217);
-        avio_wb32(pb, -((st->codecpar->height - display_height)&1));
+        avio_wb32(pb, sc->display_f2_offset);
     }
 
     if (sc->picture_descriptor_key == &mxf_rgba_descriptor_key) {
@@ -2433,6 +2434,8 @@ static int mxf_parse_prores_frame(AVFormatContext *s, AVStream *st, AVPacket *pk
 
     /* frame header color fields, SMPTE RDD 36 */
     if (pkt->size >= 25 && AV_RL32(pkt->data + 4) == AV_RL32("icpf")) {
+        int interlace_mode = (pkt->data[8 + 12] >> 2) & 3;
+
         if (pkt->data[22]) // 0 is unknown
             sc->color_primaries = pkt->data[22];
         /* code 1 covers BT.601, BT.709 and BT.2020, keep a more precise stream value */
@@ -2444,6 +2447,17 @@ static int mxf_parse_prores_frame(AVFormatContext *s, AVStream *st, AVPacket *pk
             sc->color_trc = pkt->data[23];
         if (pkt->data[24]) // 0 is unknown, not RGB
             sc->color_space = pkt->data[24];
+
+        // interlace_mode: 1 top field first, 2 bottom field first,
+        // RDD 44 Table 6 also signals bottom field first with DisplayF2Offset -1.
+        // Fields of a stream marked progressive (PsF) stay a full frame.
+        if (st->codecpar->field_order != AV_FIELD_PROGRESSIVE &&
+            (interlace_mode == 1 || interlace_mode == 2)) {
+            sc->interlaced        = 1;
+            // Field 1 is first in both modes; the offset puts it below field 2 for BFF.
+            sc->field_dominance   = 1;
+            sc->display_f2_offset = -(interlace_mode == 2);
+        }
     }
 
     sc->frame_size = pkt->size;

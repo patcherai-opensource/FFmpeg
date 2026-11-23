@@ -1,0 +1,12 @@
+0cf832163004521332af6a1b98cdb86d *tests/data/fate/mxf-prores-bff.mxf
+599609 tests/data/fate/mxf-prores-bff.mxf
+#tb 0: 1/25
+#media_type 0: video
+#codec_id 0: prores
+#dimensions 0: 720x576
+#sar 0: 0/1
+0,          0,          0,        1,   295569, 0x2fe31ee1
+0,          1,          1,        1,   295498, 0x9a2fdbde
+[STREAM]
+field_order=bb
+[/STREAM]

@@ -88,9 +88,17 @@ fate-mxf-opatom-user-comments: CMD = md5 -y -i $(TARGET_SAMPLES)/mxf/Sony-00001.
 FATE_MXF-$(call REMUX, MXF_OPATOM MXF, DVVIDEO_DECODER) += fate-mxf-remux-opatom-dv25
 fate-mxf-remux-opatom-dv25: CMD = transcode mxf $(TARGET_SAMPLES)/mxf/Avid-00005.mxf mxf_opatom "-map 0:v -c copy" "-c copy"
 
+# Interlaced ProRes BFF on a 625 line raster: DisplayF2Offset -1, read from the descriptor.
+MXF_PRORES_DEPS = FFMPEG FFPROBE RAWVIDEO_DEMUXER RAWVIDEO_DECODER SCALE_FILTER FORMAT_FILTER SETFIELD_FILTER
+FATE_MXF_PRORES_FIELDS-$(call TRANSCODE, PRORES, MXF, $(MXF_PRORES_DEPS)) += fate-mxf-prores-bff
+fate-mxf-prores-bff: CMD = transcode "rawvideo -s 352x288 -pix_fmt yuv420p" tests/data/vsynth1.yuv mxf \
+    "-frames:v 2 -vf scale=720:576,format=yuv422p10,setfield=bff -c:v prores -flags +ildct" "-c copy" "-nofind_stream_info -show_entries stream=field_order"
+$(FATE_MXF_PRORES_FIELDS-yes): tests/data/vsynth1.yuv
+
 FATE_SAMPLES_FFMPEG += $(FATE_MXF-yes)
 FATE_SAMPLES_FFMPEG_FFPROBE += $(FATE_MXF_FFMPEG_FFPROBE-yes)
 FATE_SAMPLES_FFPROBE += $(FATE_MXF_PROBE-yes)
+FATE_FFMPEG_FFPROBE += $(FATE_MXF_PRORES_FIELDS-yes)
 
 # Cross the 64 KiB IndexEntryArray limit, so that the index table is split.
 FATE_MXF_INDEX-$(call ENCMUX, MPEG2VIDEO, MXF_OPATOM, COLOR_FILTER FILE_PROTOCOL) += fate-mxf-opatom-index-segments
@@ -122,4 +130,4 @@ FATE_FFMPEG_FFPROBE += $(FATE_MXF_INDEX_FFPROBE-yes)
 
 fate-mxf: $(if $(CONFIG_FFMPEG),$(FATE_MXF-yes) $(FATE_MXF_INDEX-yes))
 fate-mxf: $(if $(CONFIG_FFPROBE),$(FATE_MXF_PROBE-yes))
-fate-mxf: $(if $(call ALLYES, FFMPEG FFPROBE),$(FATE_MXF_FFMPEG_FFPROBE-yes) $(FATE_MXF_INDEX_FFPROBE-yes))
+fate-mxf: $(if $(call ALLYES, FFMPEG FFPROBE),$(FATE_MXF_FFMPEG_FFPROBE-yes) $(FATE_MXF_INDEX_FFPROBE-yes) $(FATE_MXF_PRORES_FIELDS-yes))
