@@ -211,6 +211,8 @@ typedef struct MXFDescriptor {
 #define MXF_FIELD_DOMINANCE_FF 1 /* coded first, displayed first */
 #define MXF_FIELD_DOMINANCE_FL 2 /* coded first, displayed last */
     int field_dominance;
+    int32_t display_f2_offset;
+    int has_display_f2_offset;
     int channels;
     int bits_per_sample;
     int64_t duration; /* ContainerDuration optional property */
@@ -1405,6 +1407,10 @@ static int mxf_read_generic_descriptor(void *arg, AVIOContext *pb, int tag, int 
         break;
     case 0x3212:
         descriptor->field_dominance = avio_r8(pb);
+        break;
+    case 0x3217:
+        descriptor->display_f2_offset = avio_rb32(pb);
+        descriptor->has_display_f2_offset = 1;
         break;
     case 0x3219:
         avio_read(pb, descriptor->color_primaries_ul, 16);
@@ -2967,12 +2973,21 @@ static int mxf_parse_structural_metadata(MXFContext *mxf)
                     break;
                 case SegmentedFrame:
                     st->codecpar->field_order = AV_FIELD_PROGRESSIVE;
+                    if (st->codecpar->codec_id == AV_CODEC_ID_PRORES)
+                        break; /* StoredHeight is the frame height (ST 377-1 G.2.7). */
                     av_fallthrough;
                 case SeparateFields:
                     av_log(mxf->fc, AV_LOG_DEBUG, "video_line_map: (%d, %d), field_dominance: %d\n",
                            descriptor->video_line_map[0], descriptor->video_line_map[1],
                            descriptor->field_dominance);
-                    if ((descriptor->video_line_map[0] > 0) && (descriptor->video_line_map[1] > 0)) {
+                    /* RDD 44 Table 6 signals separate-field ProRes order
+                     * through DisplayF2Offset: 0 for TFF, -1 for BFF. */
+                    if (descriptor->frame_layout == SeparateFields &&
+                        st->codecpar->codec_id == AV_CODEC_ID_PRORES &&
+                        descriptor->has_display_f2_offset &&
+                        (descriptor->display_f2_offset == 0 || descriptor->display_f2_offset == -1)) {
+                        st->codecpar->field_order = descriptor->display_f2_offset ? AV_FIELD_BB : AV_FIELD_TT;
+                    } else if ((descriptor->video_line_map[0] > 0) && (descriptor->video_line_map[1] > 0)) {
                         /* Detect coded field order from VideoLineMap:
                          *  (even, even) => bottom field coded first
                          *  (even, odd)  => top field coded first
